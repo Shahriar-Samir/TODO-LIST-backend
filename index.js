@@ -40,6 +40,19 @@ async function run() {
         const getData = await userCollection.findOne({uid})
         res.send(getData)
     })
+    app.get('/userTasksAll/:uid',async(req,res)=>{
+        const {uid} = req.params
+        const getAllTasks = await taskCollection.find({uid}).sort({createdAt:-1}).toArray()
+        res.send(getAllTasks)
+    })
+    app.get('/userTasksToday/:uid',async(req,res)=>{
+        const date = new Date()
+        const currentDate = date.toDateString()
+        const {uid} = req.params
+        const getAllTasks = await taskCollection.find({uid, dueDate:currentDate}).sort({createdAt:-1}).toArray()
+        res.send(getAllTasks)
+    })
+
     app.post('/addUser',async(req,res)=>{
         const userData = req.body
         const addData = await userCollection.insertOne(userData)
@@ -47,6 +60,7 @@ async function run() {
     })
     app.post('/addUserTask',async(req,res)=>{
         const userTask = req.body
+        userTask.createdAt = Date.now()
         const addData = await taskCollection.insertOne(userTask)
         res.send(addData)
     })
@@ -63,7 +77,7 @@ async function run() {
             }
           }
           const updateUser = userCollection.updateOne(filter,updatedData,options)
-          res.send(updatedData)
+          res.send(updateUser)
     })
 
 
