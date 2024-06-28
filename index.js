@@ -29,6 +29,7 @@ async function run() {
     // await client.connect();
 
     const userCollection = client.db("Check_IT").collection('Users')
+    const taskCollection = client.db("Check_IT").collection('Tasks')
 
     app.get('/',async(req,res)=>{
         res.send('Check It server')
@@ -42,6 +43,11 @@ async function run() {
     app.post('/addUser',async(req,res)=>{
         const userData = req.body
         const addData = await userCollection.insertOne(userData)
+        res.send(addData)
+    })
+    app.post('/addUserTask',async(req,res)=>{
+        const userTask = req.body
+        const addData = await taskCollection.insertOne(userTask)
         res.send(addData)
     })
 
