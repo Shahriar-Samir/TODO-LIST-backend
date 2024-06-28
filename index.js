@@ -34,11 +34,32 @@ async function run() {
         res.send('Check It server')
     })
 
+    app.get('/user/:uid',async(req,res)=>{
+        const {uid} = req.params
+        const getData = await userCollection.findOne({uid})
+        res.send(getData)
+    })
     app.post('/addUser',async(req,res)=>{
         const userData = req.body
         const addData = await userCollection.insertOne(userData)
         res.send(addData)
     })
+
+    app.patch('/updateUser', (req,res)=>{
+          const userData = req.body
+          const filter = {uid:userData.uid}
+          const options = {upsert:true}
+          const updatedData = {
+            $set:{
+              displayName : userData.displayName,
+              photoURL : userData.photoURL,
+              phoneNumber : userData.phoneNumber,
+            }
+          }
+          const updateUser = userCollection.updateOne(filter,updatedData,options)
+          res.send(updatedData)
+    })
+
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
