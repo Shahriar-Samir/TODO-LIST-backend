@@ -11,7 +11,7 @@ app.use(cors({
 
 
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_NAME}:${process.env.DB_PASS}@database1.g36ghl5.mongodb.net/?retryWrites=true&w=majority&appName=database1`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -63,6 +63,25 @@ async function run() {
         userTask.createdAt = Date.now()
         const addData = await taskCollection.insertOne(userTask)
         res.send(addData)
+    })
+    app.put('/updateUserTask/:id',async(req,res)=>{
+      const taskData = req.body
+      const {id} = req.params
+      const filter = {_id: new ObjectId(id)}
+      const options = {upsert:true}
+      const updatedData = {
+        $set:{
+          name : taskData.name,
+          description: taskData.description,
+          dueDate: taskData.dueDate,
+          dueTime: taskData.dueTime,
+          reminderTime: taskData.reminderTime,
+          createdAt: Date.now()
+        }
+      }
+        
+        const updateData = await taskCollection.updateOne(filter,updatedData,options)
+        res.send(updateData)
     })
 
     app.patch('/updateUser', (req,res)=>{
