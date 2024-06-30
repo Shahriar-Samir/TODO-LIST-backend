@@ -51,14 +51,21 @@ async function run() {
     cron.schedule('* * * * * *', async () => {
   try {
     const tasks = await taskCollection.find({ status: 'upcoming' }).toArray();
-    const updatePromises = tasks.map(task => {
-      if (isPastDue(task.dueDate, task.dueTime)) {
+    const updatePromises = tasks.map(async task => {
+      if (isPastDue(task.dueDate, task.dueTime) && task.status !== 'unfinished' ) {
+        const notification = {
+            title: "You've missed the task to finish on time",
+            uid: task?.uid,
+            description: `The due date and time for the task was ${task?.date} ${task?.time}. But you are late to finish the work on time`
+        }
+        await notificationCollection.insertOne(notification)
         return taskCollection.updateOne(
           { _id: task._id },
           { $set: { status: 'unfinished' } }
         );
       }
     });
+    console.log('Updated')
     await Promise.all(updatePromises);
   } catch (error) {
     console.error('Error updating tasks:', error);
