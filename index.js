@@ -64,21 +64,27 @@ async function run() {
     console.error('Error updating tasks:', error);
   }
 });
-    
-  
+
 
 
     app.get('/',async(req,res)=>{
         res.send('Check It server')
     })
 
-    
+
 
     app.get('/user/:uid',async(req,res)=>{
         const {uid} = req.params
         const getData = await userCollection.findOne({uid})
         res.send(getData)
     })
+
+    app.get('/notifications/:uid',async(req,res)=>{
+        const {uid} = req.params
+        const getData = await notificationCollection.find({uid}).toArray()
+        res.send(getData)
+    })
+
     app.get('/userTasksAll/:uid',async(req,res)=>{
         const {uid} = req.params
         const getAllTasks = await taskCollection.find({uid}).sort({createdAt:-1}).toArray()
