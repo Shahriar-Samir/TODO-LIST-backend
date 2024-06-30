@@ -3,6 +3,7 @@ const cors = require('cors')
 require('dotenv').config()
 const port = process.env.PORT || 5000
 const app = express()
+const cron = require('node-cron')
 
 app.use(express.json())
 app.use(cors({
@@ -30,10 +31,48 @@ async function run() {
 
     const userCollection = client.db("Check_IT").collection('Users')
     const taskCollection = client.db("Check_IT").collection('Tasks')
+    const notificationCollection = client.db("Check_IT").collection('Notifications')
+
+
+    const isPastDue = (dueDate, dueTime) => {
+      const now = new Date();
+      const newDueTime = dueTime===''? '00:00' : dueTime 
+      const dueDateTime = new Date(dueDate);
+      const [time, modifier] = newDueTime.split(' ');
+      let [hours, minutes] = time.split(':').map(Number);
+      if (modifier === 'PM' && hours !== 12) hours += 12;
+      if (modifier === 'AM' && hours === 12) hours = 0;
+      dueDateTime.setHours(hours, minutes, 0, 0);
+      return now > dueDateTime;
+    };
+
+    
+    
+    cron.schedule('* * * * * *', async () => {
+  try {
+    const tasks = await taskCollection.find({ status: 'upcoming' }).toArray();
+    const updatePromises = tasks.map(task => {
+      if (isPastDue(task.dueDate, task.dueTime)) {
+        return taskCollection.updateOne(
+          { _id: task._id },
+          { $set: { status: 'unfinished' } }
+        );
+      }
+    });
+    await Promise.all(updatePromises);
+  } catch (error) {
+    console.error('Error updating tasks:', error);
+  }
+});
+    
+  
+
 
     app.get('/',async(req,res)=>{
         res.send('Check It server')
     })
+
+    
 
     app.get('/user/:uid',async(req,res)=>{
         const {uid} = req.params
@@ -45,6 +84,7 @@ async function run() {
         const getAllTasks = await taskCollection.find({uid}).sort({createdAt:-1}).toArray()
         res.send(getAllTasks)
     })
+
     app.get('/userTasksToday/:uid',async(req,res)=>{
         const date = new Date()
         const currentDate = date.toDateString()
@@ -64,7 +104,7 @@ async function run() {
         const addData = await taskCollection.insertOne(userTask)
         res.send(addData)
     })
-    app.put('/updateUserTask/:id',async(req,res)=>{
+    app.patch('/updateUserTask/:id',async(req,res)=>{
       const taskData = req.body
       const {id} = req.params
       const filter = {_id: new ObjectId(id)}
@@ -76,6 +116,7 @@ async function run() {
           dueDate: taskData.dueDate,
           dueTime: taskData.dueTime,
           reminderTime: taskData.reminderTime,
+          priority: taskData.priority, 
           createdAt: Date.now()
         }
       }
