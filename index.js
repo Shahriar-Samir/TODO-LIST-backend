@@ -45,6 +45,55 @@ async function run() {
       dueDateTime.setHours(hours, minutes, 0, 0);
       return now > dueDateTime;
     };
+    const isPastReminder = (dueDate, reminderTime) => {
+      const now = new Date();
+      if(reminderTime === ""){
+        return false
+      } 
+      else{
+        const dueDateTime = new Date(dueDate);
+      const [time, modifier] = reminderTime.split(' ');
+      let [hours, minutes] = time.split(':').map(Number);
+      if (modifier === 'PM' && hours !== 12) hours += 12;
+      if (modifier === 'AM' && hours === 12) hours = 0;
+      dueDateTime.setHours(hours, minutes, 0, 0);
+      return now > dueDateTime;
+      }
+    };
+
+    function subtractTimes(time1, time2) {
+      // Helper function to convert time to total minutes
+      function timeToMinutes(time) {
+        const [hours, minutes] = time.split(':').map(Number);
+        return hours * 60 + minutes;
+      }
+    
+      // Convert times to total minutes
+      const minutes1 = timeToMinutes(time1);
+      const minutes2 = timeToMinutes(time2);
+    
+      // Calculate the difference in minutes
+      let diff = minutes1 - minutes2;
+    
+      // Adjust for negative difference (time2 is later than time1)
+      if (diff < 0) {
+        diff += 24 * 60; // Assuming a 24-hour day
+      }
+    
+      // Convert difference to hours and minutes
+      const hours = Math.floor(diff / 60);
+      const mins = diff % 60;
+    
+      // Determine how to format the result based on duration
+      let formattedResult;
+      if (hours > 0) {
+        formattedResult = `${hours}:${mins < 10 ? '0' : ''}${mins} hours`;
+      } else {
+        formattedResult = `${mins} minutes`;
+      }
+    
+      return formattedResult;
+    }
 
     
     
@@ -52,20 +101,33 @@ async function run() {
   try {
     const tasks = await taskCollection.find({ status: 'upcoming' }).toArray();
     const updatePromises = tasks.map(async task => {
-      if (isPastDue(task.dueDate, task.dueTime) && task.status !== 'unfinished' ) {
+      if (isPastDue(task.dueDate, task.dueTime) && task.status === 'upcoming' ) {
         const notification = {
             title: "You've missed the task to finish on time",
             uid: task?.uid,
-            description: `The due date and time for the task was ${task?.date} ${task?.time}. But you are late to finish the work on time`
+            description: `The due date and time for the task was ${task?.dueDate} ${task?.dueTime}. But you are late to finish the work on time`
         }
         await notificationCollection.insertOne(notification)
+        console.log('send a  notification')
         return taskCollection.updateOne(
           { _id: task._id },
           { $set: { status: 'unfinished' } }
         );
       }
+      if (isPastReminder(task.dueDate, task.reminderTime) && task.status === 'upcoming' && task.reminderTime !== '' && !task?.reminderStatus) {
+        const notification = {
+            title:`⚠️Reminder: You have ${subtractTimes(task.dueTime,task.reminderTime)}`,
+            uid: task?.uid,
+            description: `You have ${subtractTimes(task.dueTime,task.reminderTime)}`
+        }
+        await notificationCollection.insertOne(notification)
+        console.log('send a reminder notification')
+        return taskCollection.updateOne(
+          { _id: task._id },
+          { $set: { status: 'upcoming', reminderStatus: true } }
+        );
+      }
     });
-    console.log('Updated')
     await Promise.all(updatePromises);
   } catch (error) {
     console.error('Error updating tasks:', error);
