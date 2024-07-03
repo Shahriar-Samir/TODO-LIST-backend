@@ -357,26 +357,32 @@ async function run() {
               const postFound = await taskCollection.findOne({_id: new ObjectId(change.documentKey._id)})
              if(postFound){
               if(postFound.uid === userUid){
-                const date = new Date()
-                const currentDate = date.toDateString()
-                const getAllTasks = await taskCollection.find({uid:userUid, status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
-                const getTodayTasks = await taskCollection.find({uid:userUid, dueDate:currentDate, status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
-                const getAllTasksForLen = await taskCollection.find({uid:userUid, status: {$in:['upcoming','unfinished']}}).toArray()
+                const date = new Date();
+                const currentDate = date.toDateString();
+          
+                // Combining multiple queries into a single batch request
+                const [getAllTasks, getTodayTasks, getFinishedTasks, getUnfinishedTasks, getUpcomingTasks] = await Promise.all([
+                  taskCollection.find({ uid: userUid, status: { $in: ['upcoming', 'unfinished'] } }).sort({ createdAt: -1 }).toArray(),
+                  taskCollection.find({ uid: userUid, dueDate: currentDate, status: { $in: ['upcoming', 'unfinished'] } }).sort({ createdAt: -1 }).toArray(),
+                  taskCollection.find({ uid: userUid, status: 'finished' }).toArray(),
+                  taskCollection.find({ uid: userUid, status: 'unfinished' }).toArray(),
+                  taskCollection.find({ uid: userUid, status: 'upcoming' }).toArray(),
+                ]);
+          
+                const allTasksLength = getAllTasks.length;
+                const todayTasksLength = getTodayTasks.length;
+                const finishedTasksLength = getFinishedTasks.length;
+                const unfinishedTasksLength = getUnfinishedTasks.length;
+                const upcomingTasksLength = getUpcomingTasks.length;
+          
                 socket.emit('getAllTasks', getAllTasks);
-                const getAllEventTasks = await taskCollection.find({uid: userUid}).sort({createdAt:-1}).toArray()
-                const getFinishedTasks = await taskCollection.find({uid: userUid, status:'finished'}).toArray()
-                const getUnfinishedTasks = await taskCollection.find({uid: userUid, status: 'unfinished'}).toArray()
-                const getUpcomingTasks = await taskCollection.find({uid : userUid, status:'upcoming'}).toArray()
-                const allTasksLength = getAllTasksForLen.length
-                const todayTasksLength = getTodayTasks.length
-                const finishedTasksLength =  getFinishedTasks.length
-                const unfinishedTasksLength =  getUnfinishedTasks.length
-                const upcomingTasksLength =  getUpcomingTasks.length
-                socket.emit('eventTasksAmount',{finishedTasksLength,unfinishedTasksLength,upcomingTasksLength})
-                socket.emit('todayTasks', getTodayTasks)
-                socket.emit('amounts',{allTasksLength, todayTasksLength})
-   
-                socket.emit('allEventTasks', getAllEventTasks)
+                socket.emit('eventTasksAmount', { finishedTasksLength, unfinishedTasksLength, upcomingTasksLength });
+                socket.emit('todayTasks', getTodayTasks);
+                socket.emit('amounts', { allTasksLength, todayTasksLength });
+          
+                // Assuming getAllEventTasks is not too performance-intensive
+                const getAllEventTasks = await taskCollection.find({ uid: userUid }).sort({ createdAt: -1 }).toArray();
+                socket.emit('allEventTasks', getAllEventTasks);
               }
              }
            
