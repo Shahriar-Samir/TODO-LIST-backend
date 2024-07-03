@@ -321,10 +321,13 @@ async function run() {
 
     io.use((socket,next)=>{
       const tokenCookie = socket.handshake.headers.cookie
-      const token = tokenCookie.substring(4)
+      const token = tokenCookie?.substring(4)
       if(token){
         const decoded = jwt.verify(token,process.env.SECRET)
         socket.user = decoded
+        next()
+      }
+      else{
         next()
       }
     })
@@ -332,16 +335,19 @@ async function run() {
     io.on('connection',async (socket) => {
       // console.log('New client connected');
     
-        const userUid = socket.user.uid
+        const userUid = socket?.user?.uid
 
         if(userUid){
           const notificationsWatch = notificationCollection.watch();
           notificationsWatch.on('change',async (change) => {
             if(change.operationType === 'insert'){
-              const getNotifications = await notificationCollection.find({uid:userUid, readStatus: false}).sort({createdAt:-1}).toArray()
-              const notificationsLength =  getNotifications.length
-              socket.emit('notificationsLength', {notiLen:notificationsLength});
-        
+              if(change.fullDocument.uid === userUid){
+
+                  const getNotifications = await notificationCollection.find({uid:userUid, readStatus: false}).sort({createdAt:-1}).toArray()
+                  const notificationsLength =  getNotifications.length
+                  socket.emit('notificationsLength', {notiLen:notificationsLength});
+  
+              }       
             }
           });
           const tasksWatch = taskCollection.watch();
@@ -349,18 +355,20 @@ async function run() {
 
             if(change.operationType === 'insert' || change.operationType === 'delete' || change.operationType === 'update'){
               const postFound = await taskCollection.findOne({_id: new ObjectId(change.documentKey._id)})
-
+             if(postFound){
               if(postFound.uid === userUid){
                 const getAllTasks = await taskCollection.find({uid:userUid, status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
                 socket.emit('getAllTasks', getAllTasks);
                 const date = new Date()
                 const currentDate = date.toDateString()
-                const getTodayTasks = await taskCollection.find({uid:userUid, dueDate:currentDate, status: {$in:['upcoming','unfinished']}}).toArray()
+                const getTodayTasks = await taskCollection.find({uid:userUid, dueDate:currentDate, status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
                 const getAllTasksForLen = await taskCollection.find({uid:userUid, status: {$in:['upcoming','unfinished']}}).toArray()
                 const allTasksLength = getAllTasksForLen.length
                 const todayTasksLength = getTodayTasks.length
+                socket.emit('todayTasks', getTodayTasks)
                 socket.emit('amounts',{allTasksLength, todayTasksLength})
               }
+             }
            
             }
           });
