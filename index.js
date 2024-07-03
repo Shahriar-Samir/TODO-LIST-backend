@@ -7,17 +7,20 @@ const http = require('http')
 const cron = require('node-cron')
 const server = http.createServer(app)
 const jwt = require('jsonwebtoken')
+const cookieParser = require('cookie-parser') 
 
 app.use(express.json())
 app.use(cors({
-    origin: ['https://todo-list-frontend-eta.vercel.app','http://localhost:5173']
+    origin: ['https://todo-list-frontend-eta.vercel.app','http://localhost:5173'],
+    credentials: true,
 }))
-
+app.use(cookieParser())
 
 const io = require('socket.io')(server,{
   cors: {
     origin: "http://localhost:5173",
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST"],
+    credentials: true,
   }
 })
 
@@ -226,11 +229,16 @@ async function run() {
         const currentDate = date.toDateString()
         const getTodayTasks = await taskCollection.find({uid, dueDate:currentDate, status: {$in:['upcoming','unfinished']}}).toArray()
         const getAllTasks = await taskCollection.find({uid, status: {$in:['upcoming','unfinished']}}).toArray()
-        const getNotifications = await notificationCollection.find({uid, readStatus: false}).sort({createdAt:-1}).toArray()
-        const notificationsLength = getNotifications.length
         const allTasksLength = getAllTasks.length
         const todayTasksLength = getTodayTasks.length
-        res.send({allTasksLength, todayTasksLength, notificationsLength})
+        res.send({allTasksLength, todayTasksLength})
+    })
+
+    app.get('/userNotiLengths/:uid',async(req,res)=>{
+          const {uid} = req.params
+          const getNotifications = await notificationCollection.find({uid, readStatus: false}).sort({createdAt:-1}).toArray()
+          const notificationsLength = getNotifications.length
+          res.send({notiLen: notificationsLength})
     })
 
 
@@ -309,46 +317,57 @@ async function run() {
           res.send(updateUser)
     })
 
-    const notificationsWatch = notificationCollection.watch();
-    notificationsWatch.on('change', (change) => {
-      console.log(change.operationType)
-      if(change.operationType === 'insert'){
-          sendNotifications(io)
-      }
-    });
-    const tasksWatch = taskCollection.watch();
-    tasksWatch.on('change', (change) => {
-      if(change.operationType === 'insert'){
-        sendNotifications(io)    
-        sendTasks(io)
-      }
-    });
+  
 
-
-    const sendNotifications =async (socket)=>{
-      const uid = localStorage.getItem('uid')
-      if(uid){
-        const getNotifications = await notificationCollection.find({uid, readStatus: false}).sort({createdAt:-1}).toArray()
-      const notificationsLength =  getNotifications.length
-      socket.emit('notificationsLength', notificationsLength);
+    io.use((socket,next)=>{
+      const tokenCookie = socket.handshake.headers.cookie
+      const token = tokenCookie.substring(4)
+      if(token){
+        const decoded = jwt.verify(token,process.env.SECRET)
+        socket.user = decoded
+        next()
       }
-    }
-    const sendTasks =async (socket)=>{
-      const uid = localStorage.getItem('uid')
-      if(uid){
-        const getAllTasks = await taskCollection.find({uid, status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
-        socket.emit('getAllTasks', getAllTasks);
-      }
-    }
+    })
 
     io.on('connection',async (socket) => {
       // console.log('New client connected');
     
-      socket.on('userUid', (uid)=>{
-          localStorage.setItem('uid',uid)
-      })
-      sendNotifications(socket)
-      sendTasks(socket)
+        const userUid = socket.user.uid
+
+        if(userUid){
+          const notificationsWatch = notificationCollection.watch();
+          notificationsWatch.on('change',async (change) => {
+            if(change.operationType === 'insert'){
+              const getNotifications = await notificationCollection.find({uid:userUid, readStatus: false}).sort({createdAt:-1}).toArray()
+              const notificationsLength =  getNotifications.length
+              socket.emit('notificationsLength', {notiLen:notificationsLength});
+        
+            }
+          });
+          const tasksWatch = taskCollection.watch();
+          tasksWatch.on('change',async (change) => {
+
+            if(change.operationType === 'insert' || change.operationType === 'delete' || change.operationType === 'update'){
+              const postFound = await taskCollection.findOne({_id: new ObjectId(change.documentKey._id)})
+
+              if(postFound.uid === userUid){
+                const getAllTasks = await taskCollection.find({uid:userUid, status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
+                socket.emit('getAllTasks', getAllTasks);
+                const date = new Date()
+                const currentDate = date.toDateString()
+                const getTodayTasks = await taskCollection.find({uid:userUid, dueDate:currentDate, status: {$in:['upcoming','unfinished']}}).toArray()
+                const getAllTasksForLen = await taskCollection.find({uid:userUid, status: {$in:['upcoming','unfinished']}}).toArray()
+                const allTasksLength = getAllTasksForLen.length
+                const todayTasksLength = getTodayTasks.length
+                socket.emit('amounts',{allTasksLength, todayTasksLength})
+              }
+           
+            }
+          });
+      
+        }
+ 
+
 
       socket.on('disconnect', () => {
         // console.log('Client disconnected');
