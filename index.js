@@ -3,12 +3,24 @@ const cors = require('cors')
 require('dotenv').config()
 const port = process.env.PORT || 5000
 const app = express()
+const http = require('http')
 const cron = require('node-cron')
+const server = http.createServer(app)
+
 
 app.use(express.json())
 app.use(cors({
     origin: ['https://todo-list-frontend-eta.vercel.app','http://localhost:5173']
 }))
+
+
+const io = require('socket.io')(server,{
+  cors: {
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"]
+  }
+})
+
 
 
 
@@ -24,6 +36,9 @@ const client = new MongoClient(uri, {
   }
 });
 
+
+
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -33,6 +48,7 @@ async function run() {
     const taskCollection = client.db("Check_IT").collection('Tasks')
     const notificationCollection = client.db("Check_IT").collection('Notifications')
 
+    
 
     const isPastDue = (dueDate, dueTime) => {
       const now = new Date();
@@ -284,6 +300,37 @@ async function run() {
           res.send(updateUser)
     })
 
+    const changeStream = notificationCollection.watch();
+    changeStream.on('change', (change) => {
+      console.log(change.operationType)
+      if(change.operationType === 'insert'){
+          sendNotifications(io)
+      }
+    });
+
+
+    const sendNotifications =async (socket,uid)=>{
+      console.log({uid})
+      const getNotifications = await notificationCollection.find({uid, readStatus: false}).sort({createdAt:-1}).toArray()
+      const notificationsLength =  getNotifications.length
+      socket.emit('notificationsLength', notificationsLength);
+    }
+
+    io.on('connection',async (socket) => {
+      // console.log('New client connected');
+    
+    
+      socket.on('userUid',  uid=>{
+
+          sendNotifications(socket,uid)
+      })
+    
+    
+      socket.on('disconnect', () => {
+        // console.log('Client disconnected');
+      });
+    });
+   
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
@@ -297,7 +344,9 @@ async function run() {
 run().catch(console.dir);
 
 
-
 app.listen(port, ()=>{
     console.log(`listening on port ${port}`)
+})
+server.listen(5001,()=>{
+  console.log(`Socket io listening on port ${5001}`)
 })
