@@ -364,9 +364,15 @@ async function run() {
                 const getAllTasksForLen = await taskCollection.find({uid:userUid, status: {$in:['upcoming','unfinished']}}).toArray()
                 socket.emit('getAllTasks', getAllTasks);
                 const getAllEventTasks = await taskCollection.find({uid: userUid}).sort({createdAt:-1}).toArray()
+                const getFinishedTasks = await taskCollection.find({uid: userUid, status:'finished'}).toArray()
+                const getUnfinishedTasks = await taskCollection.find({uid: userUid, status: 'unfinished'}).toArray()
+                const getUpcomingTasks = await taskCollection.find({uid : userUid, status:'upcoming'}).toArray()
                 const allTasksLength = getAllTasksForLen.length
                 const todayTasksLength = getTodayTasks.length
-                
+                const finishedTasksLength =  getFinishedTasks.length
+                const unfinishedTasksLength =  getUnfinishedTasks.length
+                const upcomingTasksLength =  getUpcomingTasks.length
+                socket.emit('eventTasksAmount',{finishedTasksLength,unfinishedTasksLength,upcomingTasksLength})
                 socket.emit('todayTasks', getTodayTasks)
                 socket.emit('amounts',{allTasksLength, todayTasksLength})
    
