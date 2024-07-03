@@ -6,7 +6,7 @@ const app = express()
 const http = require('http')
 const cron = require('node-cron')
 const server = http.createServer(app)
-
+const jwt = require('jsonwebtoken')
 
 app.use(express.json())
 app.use(cors({
@@ -35,7 +35,6 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
-
 
 
 
@@ -162,7 +161,17 @@ async function run() {
         res.send('Check It server')
     })
 
-
+    app.post('/jwt',async(req,res)=>{
+      const data = req.body
+      const token = jwt.sign(data,process.env.SECRET, {expiresIn: '1h'})
+      res.cookie('jwt', token, {httpOnly:true, sameSite: 'none', secure:true })
+      .send()
+  })
+  app.post('/logout',async(req,res)=>{
+      res
+      .clearCookie('jwt', {maxAge: 0, httpOnly: true,secure: true, sameSite: 'none'})
+      .send()
+  })
 
     app.get('/user/:uid',async(req,res)=>{
         const {uid} = req.params
@@ -300,32 +309,47 @@ async function run() {
           res.send(updateUser)
     })
 
-    const changeStream = notificationCollection.watch();
-    changeStream.on('change', (change) => {
+    const notificationsWatch = notificationCollection.watch();
+    notificationsWatch.on('change', (change) => {
       console.log(change.operationType)
       if(change.operationType === 'insert'){
           sendNotifications(io)
       }
     });
+    const tasksWatch = taskCollection.watch();
+    tasksWatch.on('change', (change) => {
+      if(change.operationType === 'insert'){
+        sendNotifications(io)    
+        sendTasks(io)
+      }
+    });
 
 
-    const sendNotifications =async (socket,uid)=>{
-      console.log({uid})
-      const getNotifications = await notificationCollection.find({uid, readStatus: false}).sort({createdAt:-1}).toArray()
+    const sendNotifications =async (socket)=>{
+      const uid = localStorage.getItem('uid')
+      if(uid){
+        const getNotifications = await notificationCollection.find({uid, readStatus: false}).sort({createdAt:-1}).toArray()
       const notificationsLength =  getNotifications.length
       socket.emit('notificationsLength', notificationsLength);
+      }
+    }
+    const sendTasks =async (socket)=>{
+      const uid = localStorage.getItem('uid')
+      if(uid){
+        const getAllTasks = await taskCollection.find({uid, status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
+        socket.emit('getAllTasks', getAllTasks);
+      }
     }
 
     io.on('connection',async (socket) => {
       // console.log('New client connected');
     
-    
-      socket.on('userUid',  uid=>{
-
-          sendNotifications(socket,uid)
+      socket.on('userUid', (uid)=>{
+          localStorage.setItem('uid',uid)
       })
-    
-    
+      sendNotifications(socket)
+      sendTasks(socket)
+
       socket.on('disconnect', () => {
         // console.log('Client disconnected');
       });
