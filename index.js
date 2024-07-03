@@ -357,16 +357,20 @@ async function run() {
               const postFound = await taskCollection.findOne({_id: new ObjectId(change.documentKey._id)})
              if(postFound){
               if(postFound.uid === userUid){
-                const getAllTasks = await taskCollection.find({uid:userUid, status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
-                socket.emit('getAllTasks', getAllTasks);
                 const date = new Date()
                 const currentDate = date.toDateString()
+                const getAllTasks = await taskCollection.find({uid:userUid, status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
                 const getTodayTasks = await taskCollection.find({uid:userUid, dueDate:currentDate, status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
                 const getAllTasksForLen = await taskCollection.find({uid:userUid, status: {$in:['upcoming','unfinished']}}).toArray()
+                socket.emit('getAllTasks', getAllTasks);
+                const getAllEventTasks = await taskCollection.find({uid: userUid}).sort({createdAt:-1}).toArray()
                 const allTasksLength = getAllTasksForLen.length
                 const todayTasksLength = getTodayTasks.length
+                
                 socket.emit('todayTasks', getTodayTasks)
                 socket.emit('amounts',{allTasksLength, todayTasksLength})
+   
+                socket.emit('allEventTasks', getAllEventTasks)
               }
              }
            
