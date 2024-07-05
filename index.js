@@ -343,6 +343,12 @@ async function run() {
         const userUid = socket?.user?.uid
 
         if(userUid){
+                    
+          socket.on('searchTasks',async (query)=>{
+            const getSearchTasks = await taskCollection.find({uid: userUid, name: {$regex:query, $options:'i'} ,status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
+            socket.emit('getSearchTasks', getSearchTasks);
+          });
+
           const notificationsWatch = notificationCollection.watch();
           notificationsWatch.on('change',async (change) => {
             if(change.operationType === 'insert'){
@@ -372,6 +378,7 @@ async function run() {
                   taskCollection.find({ uid: userUid, status: 'finished' }).toArray(),
                   taskCollection.find({ uid: userUid, status: 'unfinished' }).toArray(),
                   taskCollection.find({ uid: userUid, status: 'upcoming' }).toArray(),
+                  
                 ]);
           
                 const allTasksLength = getAllTasks.length;
@@ -379,7 +386,7 @@ async function run() {
                 const finishedTasksLength = getFinishedTasks.length;
                 const unfinishedTasksLength = getUnfinishedTasks.length;
                 const upcomingTasksLength = getUpcomingTasks.length;
-          
+
                 socket.emit('getAllTasks', getAllTasks);
                 socket.emit('eventTasksAmount', { finishedTasksLength, unfinishedTasksLength, upcomingTasksLength });
                 socket.emit('todayTasks', getTodayTasks);
@@ -388,6 +395,7 @@ async function run() {
                 // Assuming getAllEventTasks is not too performance-intensive
                 const getAllEventTasks = await taskCollection.find({ uid: userUid }).sort({ createdAt: -1 }).toArray();
                 socket.emit('allEventTasks', getAllEventTasks);
+            
               }
              }
            
