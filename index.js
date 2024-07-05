@@ -337,79 +337,78 @@ async function run() {
       }
     })
 
-    io.on('connection',async (socket) => {
-      // console.log('New client connected');
-    
-        const userUid = socket?.user?.uid
-
-        if(userUid){
-                    
-          socket.on('searchTasks',async (query)=>{
-            const getSearchTasks = await taskCollection.find({uid: userUid, name: {$regex:query, $options:'i'} ,status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
-            socket.emit('getSearchTasks', getSearchTasks);
-          });
-
-          const notificationsWatch = notificationCollection.watch();
-          notificationsWatch.on('change',async (change) => {
-            if(change.operationType === 'insert'){
-              if(change.fullDocument.uid === userUid){
-
-                  const getNotifications = await notificationCollection.find({uid:userUid, readStatus: false}).sort({createdAt:-1}).toArray()
-                  const notificationsLength =  getNotifications.length
-                  socket.emit('notificationsLength', {notiLen:notificationsLength});
+    io.on('connection', async (socket) => {
+      const userUid = socket?.user?.uid;
   
-              }       
-            }
+      if (userUid) {
+          socket.on('searchTasks', async (query) => {
+              const getSearchTasks = await taskCollection.find({ uid: userUid, name: { $regex: query, $options: 'i' }, status: { $in: ['upcoming', 'unfinished'] } }).sort({ createdAt: -1 }).toArray();
+              socket.emit('getSearchTasks', getSearchTasks);
           });
-          const tasksWatch = taskCollection.watch();
-          tasksWatch.on('change',async (change) => {
-
-            if(change.operationType === 'insert' || change.operationType === 'delete' || change.operationType === 'update'){
-              const postFound = await taskCollection.findOne({_id: new ObjectId(change.documentKey._id)})
-             if(postFound){
-              if(postFound.uid === userUid){
-                const date = new Date();
-                const currentDate = date.toDateString();
-          
-                // Combining multiple queries into a single batch request
-                const [getAllTasks, getTodayTasks, getFinishedTasks, getUnfinishedTasks, getUpcomingTasks] = await Promise.all([
-                  taskCollection.find({ uid: userUid, status: { $in: ['upcoming', 'unfinished'] } }).sort({ createdAt: -1 }).toArray(),
-                  taskCollection.find({ uid: userUid, dueDate: currentDate, status: { $in: ['upcoming', 'unfinished'] } }).sort({ createdAt: -1 }).toArray(),
-                  taskCollection.find({ uid: userUid, status: 'finished' }).toArray(),
-                  taskCollection.find({ uid: userUid, status: 'unfinished' }).toArray(),
-                  taskCollection.find({ uid: userUid, status: 'upcoming' }).toArray(),
-                  
-                ]);
-          
-                const allTasksLength = getAllTasks.length;
-                const todayTasksLength = getTodayTasks.length;
-                const finishedTasksLength = getFinishedTasks.length;
-                const unfinishedTasksLength = getUnfinishedTasks.length;
-                const upcomingTasksLength = getUpcomingTasks.length;
-
-                socket.emit('getAllTasks', getAllTasks);
-                socket.emit('eventTasksAmount', { finishedTasksLength, unfinishedTasksLength, upcomingTasksLength });
-                socket.emit('todayTasks', getTodayTasks);
-                socket.emit('amounts', { allTasksLength, todayTasksLength });
-          
-                // Assuming getAllEventTasks is not too performance-intensive
-                const getAllEventTasks = await taskCollection.find({ uid: userUid }).sort({ createdAt: -1 }).toArray();
-                socket.emit('allEventTasks', getAllEventTasks);
-            
+  
+          const notificationsWatch = notificationCollection.watch();
+          notificationsWatch.on('change', async (change) => {
+              if (change.operationType === 'insert') {
+                  if (change.fullDocument.uid === userUid) {
+                      const getNotifications = await notificationCollection.find({ uid: userUid, readStatus: false }).sort({ createdAt: -1 }).toArray();
+                      const notificationsLength = getNotifications.length;
+                      socket.emit('notificationsLength', { notiLen: notificationsLength });
+                  }
               }
-             }
-           
-            }
           });
-      
-        }
- 
+  
+          const tasksWatch = taskCollection.watch();
+          tasksWatch.on('change', async (change) => {
 
-
+  
+              if (['insert', 'delete', 'update'].includes(change.operationType)) {
+                  const postId = change.documentKey._id;
+  
+                  // Handle document deletion
+                  let postFound = null;
+                  if (change.operationType !== 'delete') {
+                      postFound = await taskCollection.findOne({ _id: new ObjectId(postId) });
+                  } else {
+                      postFound = change;
+                  }
+  
+                  if (postFound && (change.operationType === 'delete' || postFound.uid === userUid)) {
+                      const date = new Date();
+                      const currentDate = date.toDateString();
+  
+                      // Combining multiple queries into a single batch request
+                      const [getAllTasks, getTodayTasks, getFinishedTasks, getUnfinishedTasks, getUpcomingTasks] = await Promise.all([
+                          taskCollection.find({ uid: userUid, status: { $in: ['upcoming', 'unfinished'] } }).sort({ createdAt: -1 }).toArray(),
+                          taskCollection.find({ uid: userUid, dueDate: currentDate, status: { $in: ['upcoming', 'unfinished'] } }).sort({ createdAt: -1 }).toArray(),
+                          taskCollection.find({ uid: userUid, status: 'finished' }).toArray(),
+                          taskCollection.find({ uid: userUid, status: 'unfinished' }).toArray(),
+                          taskCollection.find({ uid: userUid, status: 'upcoming' }).toArray(),
+                      ]);
+  
+                      const allTasksLength = getAllTasks.length;
+                      const todayTasksLength = getTodayTasks.length;
+                      const finishedTasksLength = getFinishedTasks.length;
+                      const unfinishedTasksLength = getUnfinishedTasks.length;
+                      const upcomingTasksLength = getUpcomingTasks.length;
+  
+                      socket.emit('getAllTasks', getAllTasks);
+                      socket.emit('eventTasksAmount', { finishedTasksLength, unfinishedTasksLength, upcomingTasksLength });
+                      socket.emit('todayTasks', getTodayTasks);
+                      socket.emit('amounts', { allTasksLength, todayTasksLength });
+  
+                      // Assuming getAllEventTasks is not too performance-intensive
+                      const getAllEventTasks = await taskCollection.find({ uid: userUid }).sort({ createdAt: -1 }).toArray();
+                      socket.emit('allEventTasks', getAllEventTasks);
+                  }
+              }
+          });
+      }
+  
       socket.on('disconnect', () => {
-        // console.log('Client disconnected');
+          // console.log('Client disconnected');
       });
-    });
+  });
+  
    
 
         // Send a ping to confirm a successful connection
