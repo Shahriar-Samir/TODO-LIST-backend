@@ -194,6 +194,11 @@ async function run() {
         const getAllTasks = await taskCollection.find({uid, status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
         res.send(getAllTasks)
     })
+    app.get('/searchTasks',async(req,res)=>{
+        const {uid,query} = req.query
+        const getAllTasks = await taskCollection.find({uid, name: {$regex:query, $options:'i'} ,status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
+        res.send(getAllTasks)
+    })
     app.get('/userTasksAllEvents/:uid',async(req,res)=>{
         const {uid} = req.params
         const getAllTasks = await taskCollection.find({uid}).sort({createdAt:-1}).toArray()
