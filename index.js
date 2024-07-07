@@ -193,7 +193,7 @@ async function run() {
         const getData = await userCollection.findOne({uid})
         res.send(getData)
     })
-    app.get('/useExist/:uid',secureRoute,async(req,res)=>{
+    app.get('/userExist/:uid',async(req,res)=>{
         const {uid} = req.params
         const getData = await userCollection.findOne({uid})
         if(getData){
