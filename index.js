@@ -25,6 +25,18 @@ const io = require('socket.io')(server,{
 })
 
 
+const secureRoute = (req,res,next)=>{
+      const {token} = req.cookies
+       jwt.verify(token,process.env.SECRET,(err,decoded)=>{
+          if(err){
+            res.status(402).send('unauthorized access')
+            return next()
+          }
+          req.user = decoded
+          next()
+       })
+
+}
 
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -167,44 +179,52 @@ async function run() {
     app.post('/jwt',async(req,res)=>{
       const data = req.body
       const token = jwt.sign(data,process.env.SECRET, {expiresIn: '1h'})
-      res.cookie('jwt', token, {httpOnly:true, sameSite: 'none', secure:true })
+      res.cookie('token', token, {httpOnly:true, sameSite: 'none', secure:true })
       .send()
   })
   app.post('/logout',async(req,res)=>{
       res
-      .clearCookie('jwt', {maxAge: 0, httpOnly: true,secure: true, sameSite: 'none'})
+      .clearCookie('token', {maxAge: 0, httpOnly: true,secure: true, sameSite: 'none'})
       .send()
   })
 
-    app.get('/user/:uid',async(req,res)=>{
+    app.get('/user/:uid',secureRoute,async(req,res)=>{
         const {uid} = req.params
         const getData = await userCollection.findOne({uid})
         res.send(getData)
     })
+    app.get('/useExist/:uid',secureRoute,async(req,res)=>{
+        const {uid} = req.params
+        const getData = await userCollection.findOne({uid})
+        if(getData){
+          return res.send(true)
+        }
+        res.send(false)
+    })
 
-    app.get('/notifications/:uid',async(req,res)=>{
+    app.get('/notifications/:uid',secureRoute,async(req,res)=>{
         const {uid} = req.params
         const getData = await notificationCollection.find({uid}).sort({createdAt:-1}).toArray()
         res.send(getData)
     })
   
 
-    app.get('/userTasksAll/:uid',async(req,res)=>{
+    app.get('/userTasksAll/:uid',secureRoute,async(req,res)=>{
         const {uid} = req.params
         const getAllTasks = await taskCollection.find({uid, status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
         res.send(getAllTasks)
     })
-    app.get('/searchTasks',async(req,res)=>{
+    app.get('/searchTasks',secureRoute,async(req,res)=>{
         const {uid,query} = req.query
         const getAllTasks = await taskCollection.find({uid, name: {$regex:query, $options:'i'} ,status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
         res.send(getAllTasks)
     })
-    app.get('/userTasksAllEvents/:uid',async(req,res)=>{
+    app.get('/userTasksAllEvents/:uid',secureRoute,async(req,res)=>{
         const {uid} = req.params
         const getAllTasks = await taskCollection.find({uid}).sort({createdAt:-1}).toArray()
         res.send(getAllTasks)
     })
-    app.get('/userTasksAllAmounts/:uid',async(req,res)=>{
+    app.get('/userTasksAllAmounts/:uid',secureRoute,async(req,res)=>{
         const {uid} = req.params
         const getFinishedTasks = await taskCollection.find({uid, status:'finished'}).toArray()
         const getUnfinishedTasks = await taskCollection.find({uid, status: 'unfinished'}).toArray()
@@ -215,7 +235,7 @@ async function run() {
         res.send({finishedTasksLength,unfinishedTasksLength,upcomingTasksLength})
     })
 
-    app.patch('/markAsRead/:id',async(req,res)=>{
+    app.patch('/markAsRead/:id',secureRoute,async(req,res)=>{
         const {id} = req.params
         const options = {upsert:true}
         const updatedData = {
@@ -228,7 +248,7 @@ async function run() {
     })
 
     
-    app.get('/userTasksAmounts/:uid',async(req,res)=>{
+    app.get('/userTasksAmounts/:uid',secureRoute,async(req,res)=>{
         const {uid} = req.params
         const date = new Date()
         const currentDate = date.toDateString()
@@ -239,7 +259,7 @@ async function run() {
         res.send({allTasksLength, todayTasksLength})
     })
 
-    app.get('/userNotiLengths/:uid',async(req,res)=>{
+    app.get('/userNotiLengths/:uid',secureRoute,async(req,res)=>{
           const {uid} = req.params
           const getNotifications = await notificationCollection.find({uid, readStatus: false}).sort({createdAt:-1}).toArray()
           const notificationsLength = getNotifications.length
@@ -247,13 +267,13 @@ async function run() {
     })
 
 
-    app.delete('/deleteUserTask/:id',async(req,res)=>{
+    app.delete('/deleteUserTask/:id',secureRoute,async(req,res)=>{
         const {id} = req.params
         const deleteTask = await taskCollection.deleteOne({_id: new ObjectId(id)})
         res.send(deleteTask)
     })
 
-    app.get('/userTasksToday/:uid',async(req,res)=>{
+    app.get('/userTasksToday/:uid',secureRoute,async(req,res)=>{
         const date = new Date()
         const currentDate = date.toDateString()
         const {uid} = req.params
@@ -266,13 +286,13 @@ async function run() {
         const addData = await userCollection.insertOne(userData)
         res.send(addData)
     })
-    app.post('/addUserTask',async(req,res)=>{
+    app.post('/addUserTask',secureRoute,async(req,res)=>{
         const userTask = req.body
         userTask.createdAt = Date.now()
         const addData = await taskCollection.insertOne(userTask)
         res.send(addData)
     })
-    app.patch('/updateUserTask/:id',async(req,res)=>{
+    app.patch('/updateUserTask/:id',secureRoute,async(req,res)=>{
       const taskData = req.body
       const {id} = req.params
       const filter = {_id: new ObjectId(id)}
@@ -293,7 +313,7 @@ async function run() {
         res.send(updateData)
     })
 
-    app.patch('/checkTask/:id', async(req,res)=>{
+    app.patch('/checkTask/:id', secureRoute,async(req,res)=>{
           const {id} = req.params
           const filter = new ObjectId(id)
           const options = {upsert:true}
@@ -307,7 +327,7 @@ async function run() {
         })
 
 
-    app.patch('/updateUser', (req,res)=>{
+    app.patch('/updateUser',secureRoute, (req,res)=>{
           const userData = req.body
           const filter = {uid:userData.uid}
           const options = {upsert:true}
@@ -326,14 +346,18 @@ async function run() {
 
     io.use((socket,next)=>{
       const tokenCookie = socket.handshake.headers.cookie
-      const token = tokenCookie?.substring(4)
+      const token = tokenCookie?.substring(6)
       if(token){
-        const decoded = jwt.verify(token,process.env.SECRET)
-        socket.user = decoded
-        next()
+        jwt.verify(token,process.env.SECRET,(err,decoded)=>{
+            if(err){
+              return next(new Error("Authentication Error"))
+            }
+            socket.user = decoded
+            next()
+        })
       }
       else{
-        next()
+        next(new Error("Authentication Error"))
       }
     })
 
