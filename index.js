@@ -125,9 +125,9 @@ async function run() {
     const updatePromises = tasks.map(async task => {
       if (isPastDue(task.dueDate, task.dueTime) && task.status === 'upcoming' ) {
         const notification = {
-            title: "You've missed the task to finish on time",
+            title: `You've missed the task "${task.name}" to finish on time.`,
             uid: task?.uid,
-            description: `The due date and time for the task was ${task?.dueDate} ${task?.dueTime}. But you are late to finish the work on time`,
+            description: `The due date and time for the task "${task.name}" was ${task?.dueDate} ${task?.dueTime}. But you are late to finish the task on time.`,
             readStatus: false,  
             createdAt: Date.now()
         }
@@ -139,9 +139,9 @@ async function run() {
       }
       if (isPastReminder(task.dueDate, task.reminderTime) && task.status === 'upcoming' && task.reminderTime !== '' && !task?.reminderStatus) {
         const notification = {
-            title:`⚠️Reminder: You have ${subtractTimes(task.dueTime,task.reminderTime)}`,
+            title:`⚠️Reminder: You have ${subtractTimes(task.dueTime,task.reminderTime)} to finish the task "${task.name}".`,
             uid: task?.uid,
-            description: `You have ${subtractTimes(task.dueTime,task.reminderTime)}`,
+            description: `The task "${task.name}" has only ${subtractTimes(task.dueTime,task.reminderTime)} to finish on time.`,
             readStatus: false,
             createdAt: Date.now()
         }
@@ -348,11 +348,22 @@ async function run() {
   
           const notificationsWatch = notificationCollection.watch();
           notificationsWatch.on('change', async (change) => {
-              if (change.operationType === 'insert') {
+              if (change.operationType === 'insert' ) {
                   if (change.fullDocument.uid === userUid) {
                       const getNotifications = await notificationCollection.find({ uid: userUid, readStatus: false }).sort({ createdAt: -1 }).toArray();
                       const notificationsLength = getNotifications.length;
+                 
                       socket.emit('notificationsLength', { notiLen: notificationsLength });
+                  }
+              }
+              if(change.operationType === 'update'){
+                  const notification =  await notificationCollection.findOne({_id: change.documentKey._id})
+                  if(notification.uid === userUid){
+                   const [getAllNotifications,getNotifications] = await Promise.all([notificationCollection.find({uid: userUid}).sort({createdAt:-1}).toArray(),notificationCollection.find({ uid: userUid, readStatus: false }).sort({ createdAt: -1 }).toArray()])
+                      const notificationsLength = getNotifications.length;
+                 
+                      socket.emit('notificationsLength', { notiLen: notificationsLength });
+                          socket.emit('notifications', getAllNotifications)
                   }
               }
           });
