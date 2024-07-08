@@ -18,7 +18,7 @@ app.use(cookieParser())
 
 const io = require('socket.io')(server,{
   cors: {
-    origin: "http://localhost:5173",
+    origin: "['https://todo-list-frontend-eta.vercel.app','http://localhost:5173']",
     methods: ["GET", "POST"],
     credentials: true,
   }
