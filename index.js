@@ -466,7 +466,9 @@ async function run() {
           });
       }
   
-    
+      socket.on('disconnect', () => {
+          // console.log('Client disconnected');
+      });
   });
   
         // Send a ping to confirm a successful connection
