@@ -29,8 +29,7 @@ const secureRoute = (req,res,next)=>{
       const {token} = req.cookies
        jwt.verify(token,process.env.SECRET,(err,decoded)=>{
           if(err){
-            res.status(402).send('unauthorized access')
-            return next()
+           return  res.status(401).send('unauthorized access')
           }
           req.user = decoded
           next()
@@ -174,7 +173,7 @@ async function run() {
 
     app.get('/',async(req,res)=>{
         res.send('Check It server')
-    })
+    })  
 
     app.post('/jwt',async(req,res)=>{
       const data = req.body
@@ -189,9 +188,12 @@ async function run() {
   })
 
     app.get('/user/:uid',secureRoute,async(req,res)=>{
-        const {uid} = req.params
-        const getData = await userCollection.findOne({uid})
-        res.send(getData)
+      const {uid} = req.params
+      if(req?.user?.uid !== uid){
+       return res.status(401).send('unauthorized access')
+      }
+       const getData = await userCollection.findOne({uid})
+       res.send(getData)
     })
     app.get('/userExist/:uid',async(req,res)=>{
         const {uid} = req.params
@@ -204,6 +206,9 @@ async function run() {
 
     app.get('/notifications/:uid',secureRoute,async(req,res)=>{
         const {uid} = req.params
+        if(req?.user?.uid !== uid){
+          return res.status(401).send('unauthorized access')
+         }
         const getData = await notificationCollection.find({uid}).sort({createdAt:-1}).toArray()
         res.send(getData)
     })
@@ -211,21 +216,33 @@ async function run() {
 
     app.get('/userTasksAll/:uid',secureRoute,async(req,res)=>{
         const {uid} = req.params
+        if(req?.user?.uid !== uid){
+          return res.status(401).send('unauthorized access')
+         }
         const getAllTasks = await taskCollection.find({uid, status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
         res.send(getAllTasks)
     })
     app.get('/searchTasks',secureRoute,async(req,res)=>{
         const {uid,query} = req.query
+        if(req?.user?.uid !== uid){
+          return res.status(401).send('unauthorized access')
+         }
         const getAllTasks = await taskCollection.find({uid, name: {$regex:query, $options:'i'} ,status: {$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
         res.send(getAllTasks)
     })
     app.get('/userTasksAllEvents/:uid',secureRoute,async(req,res)=>{
         const {uid} = req.params
+        if(req?.user?.uid !== uid){
+          return res.status(401).send('unauthorized access')
+         }
         const getAllTasks = await taskCollection.find({uid}).sort({createdAt:-1}).toArray()
         res.send(getAllTasks)
     })
     app.get('/userTasksAllAmounts/:uid',secureRoute,async(req,res)=>{
         const {uid} = req.params
+        if(req?.user?.uid !== uid){
+          return res.status(401).send('unauthorized access')
+         }
         const getFinishedTasks = await taskCollection.find({uid, status:'finished'}).toArray()
         const getUnfinishedTasks = await taskCollection.find({uid, status: 'unfinished'}).toArray()
         const getUpcomingTasks = await taskCollection.find({uid, status:'upcoming'}).toArray()
@@ -250,6 +267,9 @@ async function run() {
     
     app.get('/userTasksAmounts/:uid',secureRoute,async(req,res)=>{
         const {uid} = req.params
+        if(req?.user?.uid !== uid){
+          return res.status(401).send('unauthorized access')
+         }
         const date = new Date()
         const currentDate = date.toDateString()
         const getTodayTasks = await taskCollection.find({uid, dueDate:currentDate, status: {$in:['upcoming','unfinished']}}).toArray()
@@ -261,6 +281,9 @@ async function run() {
 
     app.get('/userNotiLengths/:uid',secureRoute,async(req,res)=>{
           const {uid} = req.params
+          if(req?.user?.uid !== uid){
+            return res.status(401).send('unauthorized access')
+           }
           const getNotifications = await notificationCollection.find({uid, readStatus: false}).sort({createdAt:-1}).toArray()
           const notificationsLength = getNotifications.length
           res.send({notiLen: notificationsLength})
@@ -277,6 +300,9 @@ async function run() {
         const date = new Date()
         const currentDate = date.toDateString()
         const {uid} = req.params
+        if(req?.user?.uid !== uid){
+          return res.status(401).send('unauthorized access')
+         }
         const getAllTasks = await taskCollection.find({uid, dueDate:currentDate, status:{$in:['upcoming','unfinished']}}).sort({createdAt:-1}).toArray()
         res.send(getAllTasks)
     })
@@ -288,6 +314,9 @@ async function run() {
     })
     app.post('/addUserTask',secureRoute,async(req,res)=>{
         const userTask = req.body
+        if(req?.user?.uid !== userTask.uid){
+          return res.status(401).send('unauthorized access')
+         }
         userTask.createdAt = Date.now()
         const addData = await taskCollection.insertOne(userTask)
         res.send(addData)
@@ -363,7 +392,6 @@ async function run() {
 
     io.on('connection', async (socket) => {
       const userUid = socket?.user?.uid;
-  
       if (userUid) {
           socket.on('searchTasks', async (query) => {
               const getSearchTasks = await taskCollection.find({ uid: userUid, name: { $regex: query, $options: 'i' }, status: { $in: ['upcoming', 'unfinished'] } }).sort({ createdAt: -1 }).toArray();
