@@ -18,7 +18,7 @@ app.use(cookieParser())
 
 const io = require('socket.io')(server,{
   cors: {
-    origin: '*',
+    origin: ['https://todo-list-frontend-eta.vercel.app','http://localhost:5173'],
     credentials: true,
   }
 })
@@ -483,9 +483,7 @@ async function run() {
 run().catch(console.dir);
 
 
-app.listen(port, ()=>{
-    console.log(`listening on port ${port}`)
-})
-server.listen(5001,()=>{
-  console.log(`Socket io listening on port ${5001}`)
+
+server.listen(port,()=>{
+  console.log(`Socket io listening on port ${port}`)
 })
