@@ -171,7 +171,7 @@ async function run() {
 
 
     app.get('/',async(req,res)=>{
-        res.send('Check It server')
+        res.send('Check It server'+` ${new Date().toString()}`)
     })  
 
     app.post('/jwt',async(req,res)=>{
