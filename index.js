@@ -118,13 +118,16 @@ cron.schedule('* * * * *', async () => {
     const tasks = await taskCollection.find({ status: 'upcoming' }).toArray();
     const updatePromises = tasks.map(async task => {
       // Check if task is past due
+    
       if (isPastDue(task.dueDateTime) && task.status === 'upcoming') {
+        const now = new Date()
+        const createdAtUtc = now.toUTCString();
         const notification = {
           title: `You've missed the task "${task.name}" to finish on time.`,
           uid: task?.uid,
           description: `The due date and time for the task "${task.name}" was ${task?.dueDateTime}. But you are late to finish the task on time.`,
           readStatus: false,
-          createdAt: Date.now()
+          createdAt: createdAtUtc
         };
         await notificationCollection.insertOne(notification);
         return taskCollection.updateOne(
@@ -135,12 +138,14 @@ cron.schedule('* * * * *', async () => {
 
       // Check if reminder is past due
       if (isPastReminder(task.reminderDateTime) && task.status === 'upcoming' && task.reminderTime !== '' && !task?.reminderStatus) {
+        const now = new Date()
+        const createdAtUtc = now.toUTCString();
         const notification = {
           title: `⚠️Reminder: You have ${subtractTimes(task.dueDateTime, task.reminderDateTime)} to finish the task "${task.name}".`,
           uid: task?.uid,
           description: `The task "${task.name}" has only ${subtractTimes(task.dueDateTime, task.reminderDateTime)} to finish on time.`,
           readStatus: false,
-          createdAt: Date.now()
+          createdAt: createdAtUtc
         };
         await notificationCollection.insertOne(notification);
         return taskCollection.updateOne(
@@ -318,6 +323,7 @@ cron.schedule('* * * * *', async () => {
           name : taskData.name,
           description: taskData.description,
           dueDate: taskData.dueDate,
+          dueTime: taskData.dueTime,
           dueDateTime: taskData.dueDateTime,
           reminderDateTime: taskData.reminderDateTime,
           reminderTime: taskData.reminderTime,
